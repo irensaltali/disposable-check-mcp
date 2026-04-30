@@ -5,6 +5,7 @@ import { z } from "zod";
 export interface DisposableCheckConfig {
   baseUrl: string;
   apiKey?: string;
+  apiKeySource?: string;
   apiFetch?: typeof fetch;
 }
 
@@ -23,9 +24,32 @@ async function apiRequest<T>(
     headers["X-API-Key"] = config.apiKey;
   }
 
+  console.log(
+    JSON.stringify({
+      event: "disposable_check_mcp_api_request",
+      path,
+      method: options.method ?? "GET",
+      hasApiKey: Boolean(config.apiKey),
+      apiKeySource: config.apiKeySource ?? "none",
+      usesServiceBinding: Boolean(config.apiFetch),
+    })
+  );
+
   const apiFetch = config.apiFetch ?? fetch;
   const response = await apiFetch(url, { ...options, headers });
   const text = await response.text();
+
+  console.log(
+    JSON.stringify({
+      event: "disposable_check_mcp_api_response",
+      path,
+      status: response.status,
+      ok: response.ok,
+      hasApiKey: Boolean(config.apiKey),
+      apiKeySource: config.apiKeySource ?? "none",
+    })
+  );
+
   let body: unknown;
   try {
     body = text ? JSON.parse(text) : null;

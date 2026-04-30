@@ -32,22 +32,40 @@ function withCors(response: Response): Response {
   });
 }
 
-function getBearerToken(request: Request): string | undefined {
-  const authorization = request.headers.get("Authorization");
-  if (!authorization) return undefined;
-
-  const [scheme, token] = authorization.split(/\s+/, 2);
-  if (scheme?.toLowerCase() !== "bearer" || !token) return undefined;
-
-  return token;
+interface ApiKeySelection {
+  value?: string;
+  source: "x-api-key" | "authorization-bearer" | "authorization-raw" | "env" | "none";
 }
 
-function getApiKey(request: Request, env: Env): string | undefined {
-  return (
-    request.headers.get("X-API-Key") ??
-    getBearerToken(request) ??
-    env.DISPOSABLE_CHECK_API_KEY
-  );
+function getAuthorizationApiKey(request: Request): ApiKeySelection {
+  const authorization = request.headers.get("Authorization");
+  if (!authorization) return { source: "none" };
+
+  const trimmed = authorization.trim();
+  if (trimmed.startsWith("dk_")) {
+    return { value: trimmed, source: "authorization-raw" };
+  }
+
+  const [scheme, token] = trimmed.split(/\s+/, 2);
+  if (scheme?.toLowerCase() !== "bearer" || !token) {
+    return { source: "none" };
+  }
+
+  return { value: token, source: "authorization-bearer" };
+}
+
+function getApiKey(request: Request, env: Env): ApiKeySelection {
+  const headerApiKey = request.headers.get("X-API-Key");
+  if (headerApiKey) return { value: headerApiKey, source: "x-api-key" };
+
+  const authorizationApiKey = getAuthorizationApiKey(request);
+  if (authorizationApiKey.value) return authorizationApiKey;
+
+  if (env.DISPOSABLE_CHECK_API_KEY) {
+    return { value: env.DISPOSABLE_CHECK_API_KEY, source: "env" };
+  }
+
+  return { source: "none" };
 }
 
 export default {
@@ -84,10 +102,32 @@ export default {
       );
     }
 
+    const apiKey = getApiKey(request, env);
+    const authorization = request.headers.get("Authorization");
+
+    console.log(
+      JSON.stringify({
+        event: "disposable_check_mcp_auth",
+        method: request.method,
+        path: url.pathname,
+        hasAuthorization: Boolean(authorization),
+        authorizationLooksBearer:
+          authorization?.trim().toLowerCase().startsWith("bearer ") ?? false,
+        authorizationLooksRawApiKey:
+          authorization?.trim().startsWith("dk_") ?? false,
+        hasXApiKey: request.headers.has("X-API-Key"),
+        hasEnvApiKey: Boolean(env.DISPOSABLE_CHECK_API_KEY),
+        selectedApiKeySource: apiKey.source,
+        selectedHasApiKey: Boolean(apiKey.value),
+        userAgent: request.headers.get("User-Agent") ?? undefined,
+      })
+    );
+
     const transport = new WebStandardStreamableHTTPServerTransport();
     const server = createDisposableCheckServer({
       baseUrl: env.DISPOSABLE_CHECK_BASE_URL ?? DEFAULT_BASE_URL,
-      apiKey: getApiKey(request, env),
+      apiKey: apiKey.value,
+      apiKeySource: apiKey.source,
       apiFetch: env.DISPOSABLE_CHECK_API?.fetch.bind(env.DISPOSABLE_CHECK_API),
     });
 
