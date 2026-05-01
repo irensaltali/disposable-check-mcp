@@ -57,6 +57,79 @@ curl -X POST https://disposablecheck.irensaltali.com/mcp \
 
 `GET /mcp` intentionally returns `405 Method Not Allowed`; use `POST /mcp`.
 
+## MCP Client Setup
+
+### Claude Code
+
+```bash
+claude mcp add disposable-check \
+  --transport http \
+  --header "X-API-Key: dk_live_YOUR_KEY" \
+  https://disposablecheck.irensaltali.com/mcp
+```
+
+### Cursor
+
+Create `~/.cursor/mcp.json` globally, or `.cursor/mcp.json` in one project:
+
+```json
+{
+  "mcpServers": {
+    "disposable-check": {
+      "url": "https://disposablecheck.irensaltali.com/mcp",
+      "headers": {
+        "X-API-Key": "dk_live_YOUR_KEY"
+      }
+    }
+  }
+}
+```
+
+### VS Code
+
+Create `.vscode/mcp.json` in your workspace:
+
+```json
+{
+  "servers": {
+    "disposable-check": {
+      "type": "http",
+      "url": "https://disposablecheck.irensaltali.com/mcp",
+      "headers": {
+        "X-API-Key": "${input:disposable-check-api-key}"
+      }
+    }
+  },
+  "inputs": [
+    {
+      "id": "disposable-check-api-key",
+      "type": "promptString",
+      "description": "DisposableCheck API key",
+      "password": true
+    }
+  ]
+}
+```
+
+### Postman
+
+Create an MCP request with:
+
+```text
+URL: https://disposablecheck.irensaltali.com/mcp
+Header: X-API-Key: dk_live_YOUR_KEY
+```
+
+### Claude Desktop and Claude.ai
+
+Hosted remote MCP connectors are added from Settings → Connectors, not from `claude_desktop_config.json`. Use the hosted URL for public tools:
+
+```text
+https://disposablecheck.irensaltali.com/mcp
+```
+
+The hosted `check_email` tool requires a static API key header. Use Claude Code, VS Code, Cursor, Postman, or the Claude API when you need header-based auth.
+
 ## Local Stdio Usage
 
 Install and run the stdio server with an API key:
